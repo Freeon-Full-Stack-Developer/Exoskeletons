@@ -1,0 +1,165 @@
+#include <WiFi.h>
+#include <HX711.h>
+#include <Wire.h>
+
+const char* ssid = "WIFI";      // Имя вашей сети Wi-Fi
+const char* password = "192837465"; // Пароль от сети Wi-Fi
+
+const char* server_ip = "192.168.36.233"; // IP-адрес вашего сервера
+const int server_port = 8080; // Порт вашего сервера
+
+// HX711 circuit wiring
+const int LOADCELL_DOUT_PIN1 = 35;
+const int LOADCELL_SCK_PIN1 = 34;
+
+const int LOADCELL_DOUT_PIN2 = 32;
+const int LOADCELL_SCK_PIN2 = 33;
+
+const int LOADCELL_DOUT_PIN3 = 25;
+const int LOADCELL_SCK_PIN3 = 26;
+
+const int LOADCELL_DOUT_PIN4 = 27;
+const int LOADCELL_SCK_PIN4 = 14;
+
+const int LOADCELL_DOUT_PIN5 = 23;
+const int LOADCELL_SCK_PIN5 = 22;
+
+const int LOADCELL_DOUT_PIN6 = 19;
+const int LOADCELL_SCK_PIN6 = 18;
+
+const int LOADCELL_DOUT_PIN7 = 5;
+const int LOADCELL_SCK_PIN7 = 17;
+
+const int LOADCELL_DOUT_PIN8 = 16;
+const int LOADCELL_SCK_PIN8 = 4;
+
+const int K1 = 23;
+const int K2 = 22;
+const int K3 = 25;
+const int K4 = 26;
+const int K5 = 27;
+const int K6 = 14;
+const int K7 = 12;
+const int K8 = 13;
+
+const int D = 2; // Пин для индикации
+
+int KS1 = HIGH;
+int KS2 = HIGH;
+int KS3 = HIGH;
+int KS4 = HIGH;
+int KS5 = HIGH;
+int KS6 = HIGH;
+int KS7 = HIGH;
+int KS8 = HIGH;
+
+HX711 scale1;
+HX711 scale2;
+HX711 scale3;
+HX711 scale4;
+HX711 scale5;
+HX711 scale6;
+HX711 scale7;
+HX711 scale8;
+
+WiFiClient client;
+
+void setup() {
+  pinMode(D, OUTPUT);
+  Serial.begin(115200); // Инициализация последовательного порта для передачи данных
+  // Инициализация HX711
+  scale1.begin(LOADCELL_DOUT_PIN1, LOADCELL_SCK_PIN1);
+  scale2.begin(LOADCELL_DOUT_PIN2, LOADCELL_SCK_PIN2);
+  scale3.begin(LOADCELL_DOUT_PIN3, LOADCELL_SCK_PIN3);
+  scale4.begin(LOADCELL_DOUT_PIN4, LOADCELL_SCK_PIN4);
+  scale5.begin(LOADCELL_DOUT_PIN5, LOADCELL_SCK_PIN5);
+  scale6.begin(LOADCELL_DOUT_PIN6, LOADCELL_SCK_PIN6);
+  scale7.begin(LOADCELL_DOUT_PIN7, LOADCELL_SCK_PIN7);
+  scale8.begin(LOADCELL_DOUT_PIN8, LOADCELL_SCK_PIN8);
+
+  // Подключаемся к Wi-Fi
+  Serial.println("Connecting to WiFi...");
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.println("Connecting to WiFi...");
+    digitalWrite(D, HIGH);
+    delay(100);
+    digitalWrite(D, LOW);
+    delay(100);
+  }
+  Serial.println("Connected to WiFi!");
+}
+
+void loop() {
+  long reading1 = 0;
+  long reading2 = 0;
+  long reading3 = 0;
+  long reading4 = 0;
+  long reading5 = 0;
+  long reading6 = 0;
+  long reading7 = 0;
+  long reading8 = 0;
+
+  // Получаем данные с тензодатчиков
+   if (scale1.is_ready() && scale2.is_ready() && scale3.is_ready() && scale4.is_ready() &&
+      scale5.is_ready() && scale6.is_ready() && scale7.is_ready() && scale8.is_ready()) {
+    
+    reading1 = scale1.read() / 10000 - 634;
+    reading2 = scale2.read() / 10000 - 148;
+    reading3 = scale3.read() / 10000 - 634;
+    reading4 = scale4.read() / 10000 - 148;
+    reading5 = scale5.read() / 10000 - 634;
+    reading6 = scale6.read() / 10000 - 148;
+    reading7 = scale7.read() / 10000 - 634;
+    reading8 = scale8.read() / 10000 - 148;
+
+    Serial.print("Reading: ");
+    Serial.println("Value1: " + String(-reading1));
+    Serial.println("Value2: " + String(-reading2));
+    Serial.println("Value3: " + String(-reading3));
+    Serial.println("Value4: " + String(-reading4));
+    Serial.println("Value5: " + String(-reading5));
+    Serial.println("Value6: " + String(-reading6));
+    Serial.println("Value7: " + String(-reading7));
+    Serial.println("Value8: " + String(-reading8));
+
+    // Управление реле на основе значений с тензодатчиков
+    KS1 = (-reading1 > 5) ? LOW : HIGH;
+    KS2 = (-reading2 > 5) ? LOW : HIGH;
+    KS3 = (-reading3 > 5) ? LOW : HIGH;
+    KS4 = (-reading4 > 5) ? LOW : HIGH;
+    KS5 = (-reading5 > 5) ? LOW : HIGH;
+    KS6 = (-reading6 > 5) ? LOW : HIGH;
+    KS7 = (-reading7 > 5) ? LOW : HIGH;
+    KS8 = (-reading8 > 5) ? LOW : HIGH;
+
+    // Отправляем состояние реле на Arduino Nano
+    String relayStates = String(KS1) + String(KS2) + String(KS3) + String(KS4) +
+                         String(KS5) + String(KS6) + String(KS7) + String(KS8);
+    Serial.println(relayStates); // Отправляем состояние реле
+
+    // Проверяем, можем ли мы подключиться к серверу
+    if (client.connect(server_ip, server_port)) {
+      // Отправляем данные на сервер
+      String data = "weight1=" + String(-reading1 / 4) + "&weight2=" + String(-reading2 / 4) +
+                    "&weight3=" + String(-reading3 / 4) + "&weight4=" + String(-reading4 / 4) +
+                    "&weight5=" + String(-reading5 / 4) + "&weight6=" + String(-reading6 / 4) +
+                    "&weight7=" + String(-reading7 / 4) + "&weight8=" + String(-reading8 / 4);
+      client.print(String("GET /update?") + data + " HTTP/1.1\r\n" +
+                   "Host: " + server_ip + "\r\n" +
+                   "Connection: close\r\n\r\n");
+      Serial.println("Data sent to server");
+      client.stop();
+    } else {
+      Serial.println("Failed to connect to server");
+      digitalWrite(D, HIGH);
+      delay(100);
+      digitalWrite(D, LOW);
+      delay(100);
+    }
+  }
+
+  // Ждем 1 секунду перед следующей отправкой данных
+  delay(500);
+}
